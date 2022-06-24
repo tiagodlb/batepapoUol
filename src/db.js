@@ -9,7 +9,7 @@ const mongoClient = new MongoClient(process.env.MONGO_URL);
 try {
   await mongoClient.connect();
   db = mongoClient.db(process.env.BANCO);
-  console.log(chalk.green(`Mongo Database connected`));
+  console.log(chalk.bold.green(`Mongo Database connected`));
 } catch (error) {
   console.log(chalk.red(`Error connecting to Mongo Database`));
   console.log(process.env.MONGO_URL);
