@@ -93,29 +93,75 @@ app.post("/messages", async (req, res) => {
 });
 
 app.get("/messages", async (req, res) => {
-    const limit = parseInt(req.query.limit);
-    const { user } = req.headers;
+  const limit = parseInt(req.query.limit);
+  const { user } = req.headers;
 
-    try {
-        const messages = await db.collection("messages").find().toArray();
-        const filteredMessages = messages.filter(message => {
-            const toUser = message.to === "Todos" || (message.to === user || message.from === user);
-            const isPublic = message.type === "message";
+  try {
+    const messages = await db.collection("messages").find().toArray();
+    const filteredMessages = messages.filter((message) => {
+      const toUser =
+        message.to === "Todos" || message.to === user || message.from === user;
+      const isPublic = message.type === "message";
 
-            return toUser || isPublic
-        });
+      return toUser || isPublic;
+    });
 
-        if( limit && limit !== NaN){
-            return res.send(filteredMessages.slice(-limit))
-        }
-
-        res.send(filteredMessages);
-    } catch (error) {
-        res.status(500).send("Erro ao obter mensagens");
+    if (limit && limit !== NaN) {
+      return res.send(filteredMessages.slice(-limit));
     }
+
+    res.send(filteredMessages);
+  } catch (error) {
+    res.status(500).send("Erro ao obter mensagens");
+  }
 });
 
-app.post("/status", async (req, res) => {});
+app.post("/status", async (req, res) => {
+  const { user } = req.headers;
+  try {
+    const participant = await db
+      .collection("participants")
+      .findOne({ name: user });
+    if (!participant) return res.sendStatus(404);
+    await db
+      .collection("participants")
+      .updateOne({ name: user }, { $set: { lastStatus: Date.now() } });
+    res.sendStatus(200);
+  } catch (error) {
+    console.log("Erro ao atualizar status", error);
+    res.sendStatus(500);
+  }
+});
+
+// ------------------------------------------------------------------ //
+
+setInterval(async () => {
+  const seconds = Date.now() - 10000;
+  try {
+    const inactive = await db
+      .collection("participants")
+      .find({ lastStatus: { $lte: seconds } })
+      .toArray();
+    if (inactive.length > 0) {
+      const inactiveMessages = inactiveParticipants.map((inactive) => {
+        return {
+          from: inactive.name,
+          to: "Todos",
+          text: "sai da sala...",
+          type: "status",
+          time: dayjs().format("HH:mm:ss"),
+        };
+      });
+      await db.collection("messages").insertMany(inactive);
+      await db
+        .collection("participant")
+        .deleteMany({ lastStatus: { $lte: seconds } });
+    }
+  } catch (error) {
+    console.log("Erro ao remover usuarios", error);
+    res.sendStatus(500);
+  }
+}, 15000);
 
 app.listen(process.env.PORT, () => {
   console.log(chalk.bold.blue(`Server running on port ${process.env.PORT}`));
