@@ -1,7 +1,7 @@
 import express, { json } from "express";
 import cors from "cors";
 import joi from "joi";
-import chalk from "chalk"
+import chalk from "chalk";
 import dayjs from "dayjs";
 import db from "./db.js";
 
@@ -14,11 +14,12 @@ app.post("/participants", async (req, res) => {
   const participantSchema = joi.object({
     name: joi.string().min(1).required(),
   });
-  const { error } = participantSchema.validate(participant);
+  const { error } = participantSchema.validate(participant, {
+    abortEarly: false,
+  });
 
   if (error) {
-    console.log(error);
-    return res.sendStatus(422);
+    return res.status(422).send(error.details.map((detail) => detail.message));
   }
   try {
     const participantExists = await db
@@ -44,15 +45,56 @@ app.post("/participants", async (req, res) => {
   }
 });
 
-app.get("/participants", async (req,res) => {
-    try{
-        const participants = await db.collection("participants").find().toArray();
-        res.send(participants)
-    } catch (error) {
-        console.log(error);
-        return res.status(500).send("Erro ao obter participantes");
-    }
+app.get("/participants", async (req, res) => {
+  try {
+    const participants = await db.collection("participants").find().toArray();
+    res.send(participants);
+  } catch (error) {
+    console.log(error);
+    return res.status(500).send("Erro ao obter participantes");
+  }
 });
+
+app.post("/messages", async (req, res) => {
+  const message = req.body;
+  const messageSchema = joi.object({
+    to: joi.string().required(),
+    text: joi.string().required(),
+    type: joi.string().valid("message", "private_message").required(),
+  });
+  const { error } = messageSchema.validate(message, { abortEarly: false });
+
+  if (error) {
+    return res.status(422).send(error.details.map((detail) => detail.message));
+  }
+
+  const { user } = req.headers;
+
+  try {
+    const participant = await db
+      .collection("participants")
+      .findOne({ name: user });
+    if (!participant) {
+      return res.sendStatus(422);
+    }
+
+    await db.collection("messages").insertOne({
+      to: message.to,
+      text: message.text,
+      type: message.type,
+      from: user,
+      time: dayjs().format("HH:mm:ss"),
+    });
+
+    res.sendStatus(201);
+  } catch (error) {
+    res.status(422).send("Participante não existe!");
+  }
+});
+
+app.get("/messages", async (req, res) => {});
+
+app.post("/status", async (req, res) => {});
 
 app.listen(process.env.PORT, () => {
   console.log(chalk.bold.blue(`Server running on port ${process.env.PORT}`));
