@@ -92,7 +92,28 @@ app.post("/messages", async (req, res) => {
   }
 });
 
-app.get("/messages", async (req, res) => {});
+app.get("/messages", async (req, res) => {
+    const limit = parseInt(req.query.limit);
+    const { user } = req.headers;
+
+    try {
+        const messages = await db.collection("messages").find().toArray();
+        const filteredMessages = messages.filter(message => {
+            const toUser = message.to === "Todos" || (message.to === user || message.from === user);
+            const isPublic = message.type === "message";
+
+            return toUser || isPublic
+        });
+
+        if( limit && limit !== NaN){
+            return res.send(filteredMessages.slice(-limit))
+        }
+
+        res.send(filteredMessages);
+    } catch (error) {
+        res.status(500).send("Erro ao obter mensagens");
+    }
+});
 
 app.post("/status", async (req, res) => {});
 
