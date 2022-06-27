@@ -4,16 +4,19 @@ import joi from "joi";
 import chalk from "chalk";
 import dayjs from "dayjs";
 import db from "./db.js";
+import { stripHtml } from 'string-strip-html';
+import { ObjectId } from "mongodb";
 
 const app = express();
 app.use(json());
 app.use(cors());
 
 app.post("/participants", async (req, res) => {
-  const participant = req.body.name;
+  const participant = req.body;
   const participantSchema = joi.object({
     name: joi.string().min(1).required(),
   });
+  console.log(typeof(participant))
   const { error } = participantSchema.validate(participant, {
     abortEarly: false,
   });
@@ -133,36 +136,24 @@ app.post("/status", async (req, res) => {
   }
 });
 
-app.delete("/messages/:idMessages", (req,res) => {
-  const { idMessage } = req.headers;
+app.delete("/messages/:id", async (req,res) => {
   const { user } = req.headers;
+  const { id } = req.params;
+  const newUser = stripHtml(user).result.trim();
 
-  const isValid = ObjectId.isValid(idMessage);
-  if(!isValid){
-    return res.sendStatus(404);
-  }
-  let message;
-  try {
-    message = await db.collection("messages").findOne({_id: new ObjectId(idMessage)});
-  } catch (error) {
-    return res.sendStatus(404);
-  }
-  if(!message ){
-    return res.sendStatus(404);
-  }
-  if(message.from !== user){
-    return res.sendStatus(401);
-  }
-  try {
-    const deletedMessage = await db.collection("messages").deleteOne({
-        _id: new ObjectId(messageId),
-    });
+  try {    
+      const messageToBeDeleted = await db.collection("messages").findOne({ _id: new ObjectId(id) });
 
-    if (deletedMessage.deletedCount === 1) {
-      return  res.sendStatus(200);
-    } else {
-      return  res.sendStatus(404);
-    }
+      if(messageToBeDeleted.from !== newUser){
+          return res.sendStatus(401);
+      }
+
+      if(!messageToBeDeleted){
+          return res.sendStatus(404);
+      }
+
+      await db.collection("messages").deleteOne({ _id: new ObjectId(id) });
+      res.sendStatus(200);
   } catch (err) {
     return  res.sendStatus(500);
   }
@@ -179,7 +170,7 @@ setInterval(async () => {
       .find({ lastStatus: { $lte: seconds } })
       .toArray();
     if (inactive.length > 0) {
-      const inactiveMessages = inactiveParticipants.map((inactive) => {
+      const inactiveMessages = inactive.map((inactive) => {
         return {
           from: inactive.name,
           to: "Todos",
@@ -195,7 +186,7 @@ setInterval(async () => {
     }
   } catch (error) {
     console.log("Erro ao remover usuarios", error);
-    res.sendStatus(500);
+    res.sendStatus(500); // ?
   }
 }, 15000);
 
