@@ -133,6 +133,42 @@ app.post("/status", async (req, res) => {
   }
 });
 
+app.delete("/messages/:idMessages", (req,res) => {
+  const { idMessage } = req.headers;
+  const { user } = req.headers;
+
+  const isValid = ObjectId.isValid(idMessage);
+  if(!isValid){
+    return res.sendStatus(404);
+  }
+  let message;
+  try {
+    message = await db.collection("messages").findOne({_id: new ObjectId(idMessage)});
+  } catch (error) {
+    return res.sendStatus(404);
+  }
+  if(!message ){
+    return res.sendStatus(404);
+  }
+  if(message.from !== user){
+    return res.sendStatus(401);
+  }
+  try {
+    const deletedMessage = await db.collection("messages").deleteOne({
+        _id: new ObjectId(messageId),
+    });
+
+    if (deletedMessage.deletedCount === 1) {
+      return  res.sendStatus(200);
+    } else {
+      return  res.sendStatus(404);
+    }
+  } catch (err) {
+    return  res.sendStatus(500);
+  }
+
+});
+
 // ------------------------------------------------------------------ //
 
 setInterval(async () => {
